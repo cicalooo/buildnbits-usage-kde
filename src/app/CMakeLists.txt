@@ -17,6 +17,7 @@ target_link_libraries(buildnbits-usage PRIVATE
     KF6::CoreAddons
     KF6::ConfigCore
     KF6::I18n
+    KF6::WindowSystem
 )
 
 target_include_directories(buildnbits-usage PRIVATE ${CMAKE_SOURCE_DIR}/src/core)

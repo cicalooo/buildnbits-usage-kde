@@ -1,12 +1,12 @@
 #pragma once
 
-#include <QWidget>
+#include <QMenu>
 #include <QVector>
 
 class MenuWidget;
 class Provider;
 
-class UsagePopup : public QWidget {
+class UsagePopup : public QMenu {
     Q_OBJECT
 public:
     explicit UsagePopup(QWidget *parent = nullptr);
@@ -21,4 +21,5 @@ signals:
 
 private:
     MenuWidget *m_cards;
+    QWidget *m_anchor = nullptr;
 };

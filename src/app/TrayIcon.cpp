@@ -3,6 +3,7 @@
 #include "UsagePopup.h"
 
 #include <KLocalizedString>
+#include <KWindowSystem>
 #include <algorithm>
 #include <QAction>
 #include <QApplication>
@@ -217,7 +218,12 @@ void TrayIcon::rebuildItems() {
         item.sni->setContextMenu(item.menu);
 
         connect(item.sni, &KStatusNotifierItem::activateRequested, this,
-                [this](bool, const QPoint &pos) { showPopup(pos); });
+                [this, sni = item.sni](bool, const QPoint &pos) {
+                    const QString token = sni->providedToken();
+                    if (!token.isEmpty())
+                        KWindowSystem::setCurrentXdgActivationToken(token);
+                    showPopup(pos);
+                });
         connect(item.sni, &KStatusNotifierItem::secondaryActivateRequested, this,
                 [this, id = item.id](const QPoint &) {
                     for (auto &it : m_items) {
