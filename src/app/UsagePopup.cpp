@@ -49,8 +49,8 @@ UsagePopup::UsagePopup(QWidget *parent)
     row->addWidget(quit);
     root->addLayout(row);
 
-    setMinimumWidth(340);
-    setMaximumHeight(640);
+    setMinimumWidth(380);
+    setMaximumHeight(720);
     qApp->installEventFilter(this);
 }
 
@@ -111,14 +111,24 @@ void UsagePopup::placeOnX11(const QPoint &globalPos, const QSize &size) {
     setGeometry(QRect(QPoint(x, y), size));
 }
 
-void UsagePopup::toggleAt(const QPoint &globalPos) {
-    if (isVisible()) {
+void UsagePopup::toggleProvider(Provider *provider, const QPoint &globalPos) {
+    if (!provider)
+        return;
+    if (isVisible() && m_openId == provider->id()) {
         if (m_shownAt.isValid() && m_shownAt.elapsed() < 250)
             return;
         hide();
+        m_openId = ProviderID::Unknown;
         return;
     }
+    if (isVisible())
+        hide();
+    setProviders({provider});
+    m_openId = provider->id();
+    presentAt(globalPos);
+}
 
+void UsagePopup::presentAt(const QPoint &globalPos) {
     QPoint pos = globalPos;
     if (pos.isNull())
         pos = QCursor::pos();
@@ -127,9 +137,9 @@ void UsagePopup::toggleAt(const QPoint &globalPos) {
     if (!screen)
         screen = QGuiApplication::primaryScreen();
     const QRect avail = screen ? screen->availableGeometry() : QRect(0, 0, 800, 600);
-    QSize sz = sizeHint().expandedTo(minimumSize());
-    sz.setWidth(qBound(340, sz.width(), avail.width() - 16));
-    sz.setHeight(qBound(200, sz.height(), qMin(640, avail.height() - 24)));
+    QSize sz = m_cards->sizeHint().expandedTo(QSize(380, 220));
+    sz.setWidth(qBound(380, sz.width(), avail.width() - 16));
+    sz.setHeight(qBound(220, sz.height() + 52, qMin(720, avail.height() - 24)));
     resize(sz);
 
     const bool wayland = QGuiApplication::platformName() == QLatin1String("wayland");

@@ -15,8 +15,9 @@ public:
     QSize minimumSizeHint() const override;
 
 private:
-    QWidget *createCard(Provider *provider);
+    QWidget *createCard(Provider *provider, bool expanded);
     void clearCards();
     QVBoxLayout *m_cardsLayout;
     int m_visibleCount = 0;
+    int m_barCount = 1;
 };

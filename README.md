@@ -23,7 +23,7 @@ Three StatusNotifier squares keep Codex (green), Grok (orange), and Antigravity 
 
 ![Codex, Grok, and Antigravity remaining-percent squares in the Plasma system tray](docs/images/usage-tracker-tray-icons.png)
 
-Click any square for the combined usage popup (windows, reset times, refresh, and settings). Right-click for Settings, Refresh, and Quit.
+Click a square for that provider’s panel only (Codex 5-hour and 7-day, Grok weekly, or every Antigravity quota pool). Right-click for Settings, Refresh, and Quit.
 
 ## How it works
 

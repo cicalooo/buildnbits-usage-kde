@@ -20,7 +20,7 @@ public:
 private slots:
     void updateIcons();
     void applySettings();
-    void showPopup(const QPoint &pos);
+    void showPopup(ProviderID id, const QPoint &pos);
     void openSettings();
 
 private:
@@ -39,7 +39,7 @@ private:
     void paintItem(Item &item);
     SquarePaint paintFor(Provider *provider, int windowIndex) const;
     qreal devicePixelRatio() const;
-    QMenu *buildContextMenu();
+    QMenu *buildContextMenu(ProviderID id);
 
     ProviderRegistry *m_registry;
     QTimer *m_timer;

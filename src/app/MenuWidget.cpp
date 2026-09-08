@@ -37,7 +37,7 @@ static QString ageLabel(const QDateTime &ts) {
     return ts.toString(QStringLiteral("HH:mm"));
 }
 
-QWidget *MenuWidget::createCard(Provider *provider) {
+QWidget *MenuWidget::createCard(Provider *provider, bool expanded) {
     const QColor brand = IconRenderer::brandFor(provider->id());
     auto *card = new QFrame(this);
     card->setFrameShape(QFrame::NoFrame);
@@ -75,10 +75,11 @@ QWidget *MenuWidget::createCard(Provider *provider) {
     header->addStretch();
 
     auto snapshot = provider->snapshot();
-    std::sort(snapshot.limits.begin(), snapshot.limits.end(),
-              [](const UsageLimit &a, const UsageLimit &b) {
-                  return a.displayPercent() < b.displayPercent();
-              });
+    int heroIndex = 0;
+    for (int i = 1; i < snapshot.limits.size(); ++i) {
+        if (snapshot.limits.at(i).displayPercent() < snapshot.limits.at(heroIndex).displayPercent())
+            heroIndex = i;
+    }
     const QString source = snapshot.source.isEmpty() ? QStringLiteral("cli") : snapshot.source;
     auto *chip = new QLabel(source + QStringLiteral(" · ") + ageLabel(snapshot.timestamp), card);
     chip->setStyleSheet(QStringLiteral("color: palette(mid); font-size: 11px;"));
@@ -119,7 +120,7 @@ QWidget *MenuWidget::createCard(Provider *provider) {
         layout->addWidget(banner);
     }
 
-    const UsageLimit &heroLimit = snapshot.limits.first();
+    const UsageLimit &heroLimit = snapshot.limits.at(heroIndex);
     auto *heroRow = new QHBoxLayout();
     auto *hero = new QLabel(QStringLiteral("%1%").arg(qRound(heroLimit.displayPercent())), card);
     QFont hf = hero->font();
@@ -150,11 +151,17 @@ QWidget *MenuWidget::createCard(Provider *provider) {
             "QProgressBar::chunk { background: %1; border-radius: 3px; }")
                                .arg(brand.name()));
         layout->addWidget(bar);
+        if (!limit.resetDescription.isEmpty() && expanded) {
+            auto *resetRow = new QLabel(limit.resetDescription, card);
+            resetRow->setStyleSheet(QStringLiteral("color: palette(mid); font-size: 11px;"));
+            layout->addWidget(resetRow);
+        }
     };
 
-    addBar(heroLimit, 6);
-    for (int i = 1; i < snapshot.limits.size() && i < 5; ++i)
-        addBar(snapshot.limits.at(i), 4);
+    const int primaryH = expanded ? 10 : 6;
+    const int secondaryH = expanded ? 8 : 4;
+    for (int i = 0; i < snapshot.limits.size(); ++i)
+        addBar(snapshot.limits.at(i), i == heroIndex ? primaryH : secondaryH);
 
     if (provider->id() == ProviderID::Grok) {
         auto *note = new QLabel(tr("Credits % · not a session window"), card);
@@ -171,8 +178,12 @@ QWidget *MenuWidget::createCard(Provider *provider) {
 void MenuWidget::updateData(const QVector<Provider *> &providers) {
     clearCards();
     m_visibleCount = providers.size();
-    for (auto *provider : providers)
-        m_cardsLayout->addWidget(createCard(provider), 1);
+    m_barCount = 1;
+    const bool expanded = providers.size() == 1;
+    for (auto *provider : providers) {
+        m_barCount = qMax(m_barCount, provider->snapshot().limits.size());
+        m_cardsLayout->addWidget(createCard(provider, expanded), 1);
+    }
     if (m_visibleCount == 0) {
         auto *empty = new QLabel(tr("No provider usage data available"), this);
         empty->setContentsMargins(10, 8, 10, 8);
@@ -182,8 +193,9 @@ void MenuWidget::updateData(const QVector<Provider *> &providers) {
 }
 
 QSize MenuWidget::sizeHint() const {
-    const int count = qMax(1, m_visibleCount);
-    return QSize(340, 160 * count + 20);
+    if (m_visibleCount <= 1)
+        return QSize(380, 150 + m_barCount * 52);
+    return QSize(340, 160 * m_visibleCount + 20);
 }
 
-QSize MenuWidget::minimumSizeHint() const { return QSize(300, 140); }
+QSize MenuWidget::minimumSizeHint() const { return QSize(320, 160); }

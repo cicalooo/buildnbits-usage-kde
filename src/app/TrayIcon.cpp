@@ -174,15 +174,17 @@ void TrayIcon::openSettings() {
     m_settingsDialog->activateWindow();
 }
 
-void TrayIcon::showPopup(const QPoint &pos) {
-    m_popup->setProviders(enabledProviders());
-    m_popup->toggleAt(pos);
+void TrayIcon::showPopup(ProviderID id, const QPoint &pos) {
+    auto *provider = m_registry->provider(id);
+    if (!provider)
+        return;
+    m_popup->toggleProvider(provider, pos);
 }
 
-QMenu *TrayIcon::buildContextMenu() {
+QMenu *TrayIcon::buildContextMenu(ProviderID id) {
     auto *menu = new QMenu();
     auto *open = menu->addAction(i18n("Open usage"));
-    connect(open, &QAction::triggered, this, [this]() { showPopup(QCursor::pos()); });
+    connect(open, &QAction::triggered, this, [this, id]() { showPopup(id, QCursor::pos()); });
     menu->addSeparator();
     auto *settings = menu->addAction(i18n("Settings"));
     connect(settings, &QAction::triggered, this, &TrayIcon::openSettings);
@@ -214,11 +216,11 @@ void TrayIcon::rebuildItems() {
         item.sni->setStatus(KStatusNotifierItem::Active);
         item.sni->setStandardActionsEnabled(false);
         item.sni->setTitle(provider->name());
-        item.menu = buildContextMenu();
+        item.menu = buildContextMenu(provider->id());
         item.sni->setContextMenu(item.menu);
 
         connect(item.sni, &KStatusNotifierItem::activateRequested, this,
-                [this, sni = item.sni](bool active, const QPoint &pos) {
+                [this, sni = item.sni, id = provider->id()](bool active, const QPoint &pos) {
                     const QString token = sni->providedToken();
                     if (!token.isEmpty())
                         KWindowSystem::setCurrentXdgActivationToken(token);
@@ -226,7 +228,7 @@ void TrayIcon::rebuildItems() {
                         m_popup->hide();
                         return;
                     }
-                    showPopup(pos);
+                    showPopup(id, pos);
                 });
         connect(item.sni, &KStatusNotifierItem::secondaryActivateRequested, this,
                 [this, id = item.id](const QPoint &) {
