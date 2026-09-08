@@ -2,8 +2,11 @@
 Name=BuildnBits Usage
 Comment=Codex, Grok, and Antigravity remaining quota
 Exec=buildnbits-usage
+TryExec=buildnbits-usage
 Icon=buildnbits-usage
 Type=Application
-Categories=Utility;Development;
+Categories=Utility;Development;Monitor;
+Keywords=codex;grok;antigravity;usage;quota;ai;
 StartupNotify=false
 Terminal=false
+X-KDE-StartupNotify=false

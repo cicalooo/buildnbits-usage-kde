@@ -1,0 +1,30 @@
+# Maintainer: BuildnBits contributors
+pkgname=buildnbits-usage-kde
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Plasma tray squares for remaining Codex, Grok, and Antigravity usage"
+arch=('x86_64')
+url="https://github.com/cicalooo/buildnbits-usage-kde"
+license=('MIT')
+depends=('qt6-base' 'kstatusnotifieritem' 'kcoreaddons' 'kconfig' 'ki18n' 'kwindowsystem' 'layer-shell-qt')
+makedepends=('cmake' 'extra-cmake-modules' 'git')
+source=("git+${url}.git#branch=main")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "${srcdir}/buildnbits-usage-kde"
+    git describe --tags --always | sed 's/^v//;s/-/./g'
+}
+
+build() {
+    cmake -B build -S "${srcdir}/buildnbits-usage-kde" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build build
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+    install -Dm644 "${srcdir}/buildnbits-usage-kde/LICENSE" \
+        "$pkgdir/usr/share/licenses/${pkgname}/LICENSE"
+}

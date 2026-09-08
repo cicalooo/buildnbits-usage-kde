@@ -15,6 +15,39 @@ Linux/KDE companion to [BuildnBits.Usage for Windows](https://github.com/cicaloo
 
 This is a Qt 6 / KDE Frameworks tray daemon. It is **not** a Plasma panel widget.
 
+## Install
+
+On Arch (and most Arch-based distros) from a terminal:
+
+```bash
+git clone https://github.com/cicalooo/buildnbits-usage-kde.git
+cd buildnbits-usage-kde
+./install.sh --start
+```
+
+That installs packages, builds, installs into `~/.local`, and starts the tray squares. Enable **Run at Startup** from any square → Settings.
+
+| Command | What it does |
+| --- | --- |
+| `./install.sh` | Build and install for your user (`~/.local`) |
+| `./install.sh --start` | Same, then launch |
+| `./install.sh --uninstall` | Remove the user install |
+| `./install.sh --system` | Install to `/usr` (uses sudo) |
+| `make install` | Same as `./install.sh` without auto packages |
+
+Then sign in to the CLIs you use (`codex`, `grok`, and/or `agy`). The app never asks for API keys.
+
+### Arch package (from this tree)
+
+```bash
+cd packaging/arch
+makepkg -si
+```
+
+### Other distros
+
+`./install.sh` tries **dnf** (Fedora) and **apt** (Debian/Ubuntu). If your packages have different names, install Qt 6, Extra CMake Modules, KDE Frameworks 6 (`kstatusnotifieritem`, `kcoreaddons`, `kconfig`, `ki18n`, `kwindowsystem`) and LayerShellQt, then run `./install.sh` again.
+
 ## Screenshots
 
 ### Notification-area squares
@@ -70,35 +103,10 @@ Antigravity's one-shot `/usage` command is capped at 15 seconds. A timeout leave
 | Path | Responsibility |
 | --- | --- |
 | `src/core` | Models, Codex/Grok/agy clients, JSON cache |
-| `src/app` | StatusNotifier squares, combined popup, settings, launch-at-login |
+| `src/app` | StatusNotifier squares, per-provider popup, settings |
 | `resources` | Desktop file and application icon |
-| `packaging` | Arch packaging sketches |
-
-## Requirements
-
-- Linux with KDE Plasma 6 (StatusNotifier tray)
-- Qt 6 and KDE Frameworks 6 to build from source
-- An authenticated Codex, Grok, and/or Antigravity CLI, depending on the providers you use
-
-## Build from source
-
-Arch Linux:
-
-```bash
-sudo pacman -S cmake extra-cmake-modules qt6-base kstatusnotifieritem kcoreaddons kconfig ki18n kwindowsystem layer-shell-qt
-
-cmake -S . -B build
-cmake --build build -j$(nproc)
-./build/src/app/buildnbits-usage
-```
-
-Optional install:
-
-```bash
-cmake --install build
-```
-
-This installs `buildnbits-usage` and a desktop entry so it appears in the application launcher.
+| `install.sh` | One-command user install |
+| `packaging/arch` | Arch `PKGBUILD` |
 
 ## Settings and future work
 
