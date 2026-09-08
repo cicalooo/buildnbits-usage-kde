@@ -3,7 +3,7 @@
 #include <QWidget>
 #include <QVector>
 
-class QHBoxLayout;
+class QVBoxLayout;
 class Provider;
 
 class MenuWidget : public QWidget {
@@ -17,6 +17,6 @@ public:
 private:
     QWidget *createCard(Provider *provider);
     void clearCards();
-    QHBoxLayout *m_cardsLayout;
+    QVBoxLayout *m_cardsLayout;
     int m_visibleCount = 0;
 };

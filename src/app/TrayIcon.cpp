@@ -1,6 +1,6 @@
 #include "TrayIcon.h"
 
-#include "MenuWidget.h"
+#include "UsagePopup.h"
 
 #include <KLocalizedString>
 #include <algorithm>
@@ -15,7 +15,6 @@
 #include <QScreen>
 #include <QSettings>
 #include <QUrl>
-#include <QWidgetAction>
 
 static QString sniIdFor(ProviderID id) {
     switch (id) {
@@ -34,7 +33,12 @@ TrayIcon::TrayIcon(ProviderRegistry *registry, QObject *parent)
     : QObject(parent)
     , m_registry(registry)
     , m_timer(new QTimer(this))
+    , m_popup(new UsagePopup())
 {
+    connect(m_popup, &UsagePopup::settingsRequested, this, &TrayIcon::openSettings);
+    connect(m_popup, &UsagePopup::refreshRequested, this, &TrayIcon::refreshEnabled);
+    connect(m_popup, &UsagePopup::quitRequested, qApp, &QCoreApplication::quit);
+
     QSettings s(QStringLiteral("BuildnBits"), QStringLiteral("Usage"));
     for (auto *provider : m_registry->providers()) {
         m_windowIndex.insert(provider->id(), s.value(QStringLiteral("windowIndex/%1").arg(static_cast<int>(provider->id())), 0).toInt());
@@ -141,9 +145,6 @@ void TrayIcon::paintItem(Item &item) {
             tooltip += QStringLiteral("<br>cached");
     }
     item.sni->setToolTip(QIcon(), provider->name(), tooltip);
-
-    if (item.menuWidget)
-        item.menuWidget->updateData(enabledProviders());
 }
 
 void TrayIcon::cycleWindow(Item &item, int delta) {
@@ -162,6 +163,40 @@ void TrayIcon::cycleWindow(Item &item, int delta) {
     paintItem(item);
 }
 
+void TrayIcon::openSettings() {
+    if (!m_settingsDialog) {
+        m_settingsDialog = new SettingsDialog();
+        connect(m_settingsDialog, &SettingsDialog::settingsChanged, this, &TrayIcon::applySettings);
+    }
+    m_settingsDialog->show();
+    m_settingsDialog->raise();
+    m_settingsDialog->activateWindow();
+}
+
+void TrayIcon::showPopup(const QPoint &pos) {
+    m_popup->setProviders(enabledProviders());
+    m_popup->toggleAt(pos);
+}
+
+QMenu *TrayIcon::buildContextMenu() {
+    auto *menu = new QMenu();
+    auto *open = menu->addAction(i18n("Open usage"));
+    connect(open, &QAction::triggered, this, [this]() { showPopup(QCursor::pos()); });
+    menu->addSeparator();
+    auto *settings = menu->addAction(i18n("Settings"));
+    connect(settings, &QAction::triggered, this, &TrayIcon::openSettings);
+    menu->addAction(i18n("Refresh All"), this, &TrayIcon::refreshEnabled);
+    menu->addSeparator();
+    auto *about = menu->addAction(QStringLiteral("BuildnBits Usage %1").arg(QCoreApplication::applicationVersion()));
+    connect(about, &QAction::triggered, this, []() {
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/cicalooo/buildnbits-usage-kde")));
+    });
+    menu->addSeparator();
+    menu->addAction(QIcon::fromTheme(QStringLiteral("application-exit")), i18n("Quit"),
+                    qApp, &QCoreApplication::quit);
+    return menu;
+}
+
 void TrayIcon::rebuildItems() {
     for (auto &item : m_items) {
         delete item.sni;
@@ -178,40 +213,11 @@ void TrayIcon::rebuildItems() {
         item.sni->setStatus(KStatusNotifierItem::Active);
         item.sni->setStandardActionsEnabled(false);
         item.sni->setTitle(provider->name());
-
-        item.menu = new QMenu();
-        item.menuWidget = new MenuWidget(item.menu);
-        auto *menuAction = new QWidgetAction(item.menu);
-        menuAction->setDefaultWidget(item.menuWidget);
-        item.menu->addAction(menuAction);
-        item.menu->addSeparator();
-
-        auto *title = item.menu->addAction(QStringLiteral("BuildnBits Usage %1").arg(QCoreApplication::applicationVersion()));
-        connect(title, &QAction::triggered, this, []() {
-            QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/cicalooo/buildnbits-usage-kde")));
-        });
-        item.menu->addSeparator();
-
-        auto *settings = item.menu->addAction(i18n("Settings"));
-        connect(settings, &QAction::triggered, this, [this]() {
-            if (!m_settingsDialog) {
-                m_settingsDialog = new SettingsDialog();
-                connect(m_settingsDialog, &SettingsDialog::settingsChanged, this, &TrayIcon::applySettings);
-            }
-            m_settingsDialog->show();
-            m_settingsDialog->raise();
-            m_settingsDialog->activateWindow();
-        });
-        item.menu->addAction(i18n("Refresh All"), this, &TrayIcon::refreshEnabled);
-        item.menu->addSeparator();
-        item.menu->addAction(QIcon::fromTheme(QStringLiteral("application-exit")), i18n("Quit"),
-                             qApp, &QCoreApplication::quit);
-
+        item.menu = buildContextMenu();
         item.sni->setContextMenu(item.menu);
+
         connect(item.sni, &KStatusNotifierItem::activateRequested, this,
-                [sni = item.sni](bool, const QPoint &pos) {
-                    sni->contextMenu()->popup(pos.isNull() ? QCursor::pos() : pos);
-                });
+                [this](bool, const QPoint &pos) { showPopup(pos); });
         connect(item.sni, &KStatusNotifierItem::secondaryActivateRequested, this,
                 [this, id = item.id](const QPoint &) {
                     for (auto &it : m_items) {

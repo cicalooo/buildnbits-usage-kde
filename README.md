@@ -15,6 +15,16 @@ Linux/KDE companion to [BuildnBits.Usage for Windows](https://github.com/cicaloo
 
 This is a Qt 6 / KDE Frameworks tray daemon. It is **not** a Plasma panel widget.
 
+## Screenshots
+
+### Notification-area squares
+
+Three StatusNotifier squares keep Codex (green), Grok (orange), and Antigravity (blue) remaining percentages visible without opening the popup. Each tile shows the lowest remaining window for that provider.
+
+![Codex, Grok, and Antigravity remaining-percent squares in the Plasma system tray](docs/images/usage-tracker-tray-icons.png)
+
+Click any square for the combined usage popup (windows, reset times, refresh, and settings). Right-click for Settings, Refresh, and Quit.
+
 ## How it works
 
 Plasma does not provide a supported API for arbitrary inline taskbar widgets. BuildnBits.Usage uses three StatusNotifierItem tray icons instead. Click any square to open the combined popup.

@@ -10,8 +10,7 @@
 #include "SettingsDialog.h"
 
 class QMenu;
-class QWidgetAction;
-class MenuWidget;
+class UsagePopup;
 
 class TrayIcon : public QObject {
     Q_OBJECT
@@ -21,13 +20,14 @@ public:
 private slots:
     void updateIcons();
     void applySettings();
+    void showPopup(const QPoint &pos);
+    void openSettings();
 
 private:
     struct Item {
         ProviderID id = ProviderID::Unknown;
         KStatusNotifierItem *sni = nullptr;
         QMenu *menu = nullptr;
-        MenuWidget *menuWidget = nullptr;
         int windowIndex = 0;
     };
 
@@ -39,10 +39,12 @@ private:
     void paintItem(Item &item);
     SquarePaint paintFor(Provider *provider, int windowIndex) const;
     qreal devicePixelRatio() const;
+    QMenu *buildContextMenu();
 
     ProviderRegistry *m_registry;
     QTimer *m_timer;
     SettingsDialog *m_settingsDialog = nullptr;
+    UsagePopup *m_popup = nullptr;
     QList<Item> m_items;
     QHash<ProviderID, int> m_windowIndex;
 };

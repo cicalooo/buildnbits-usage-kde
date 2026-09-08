@@ -6,6 +6,7 @@ target_sources(buildnbits-usage PRIVATE
     IconRenderer.cpp
     SettingsDialog.cpp
     MenuWidget.cpp
+    UsagePopup.cpp
 )
 
 target_link_libraries(buildnbits-usage PRIVATE

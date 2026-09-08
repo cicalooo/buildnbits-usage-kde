@@ -10,10 +10,10 @@
 #include <QVBoxLayout>
 #include <QDateTime>
 
-MenuWidget::MenuWidget(QWidget *parent) : QWidget(parent), m_cardsLayout(new QHBoxLayout(this)) {
+MenuWidget::MenuWidget(QWidget *parent) : QWidget(parent), m_cardsLayout(new QVBoxLayout(this)) {
     m_cardsLayout->setContentsMargins(10, 10, 10, 10);
     m_cardsLayout->setSpacing(8);
-    setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+    setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
 }
 
 void MenuWidget::clearCards() {
@@ -183,7 +183,7 @@ void MenuWidget::updateData(const QVector<Provider *> &providers) {
 
 QSize MenuWidget::sizeHint() const {
     const int count = qMax(1, m_visibleCount);
-    return QSize(260 * count + 20, 220);
+    return QSize(340, 160 * count + 20);
 }
 
-QSize MenuWidget::minimumSizeHint() const { return QSize(260, 160); }
+QSize MenuWidget::minimumSizeHint() const { return QSize(300, 140); }
