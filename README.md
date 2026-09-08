@@ -85,7 +85,7 @@ Antigravity's one-shot `/usage` command is capped at 15 seconds. A timeout leave
 Arch Linux:
 
 ```bash
-sudo pacman -S cmake extra-cmake-modules qt6-base kstatusnotifieritem kcoreaddons kconfig ki18n kwindowsystem
+sudo pacman -S cmake extra-cmake-modules qt6-base kstatusnotifieritem kcoreaddons kconfig ki18n kwindowsystem layer-shell-qt
 
 cmake -S . -B build
 cmake --build build -j$(nproc)

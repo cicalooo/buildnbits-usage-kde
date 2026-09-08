@@ -28,6 +28,8 @@ find_package(KF6 6.0 REQUIRED COMPONENTS
     WindowSystem
 )
 
+find_package(LayerShellQt REQUIRED)
+
 if(NOT APP_VERSION)
     execute_process(
         COMMAND git describe --tags --always

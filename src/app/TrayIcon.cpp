@@ -218,10 +218,14 @@ void TrayIcon::rebuildItems() {
         item.sni->setContextMenu(item.menu);
 
         connect(item.sni, &KStatusNotifierItem::activateRequested, this,
-                [this, sni = item.sni](bool, const QPoint &pos) {
+                [this, sni = item.sni](bool active, const QPoint &pos) {
                     const QString token = sni->providedToken();
                     if (!token.isEmpty())
                         KWindowSystem::setCurrentXdgActivationToken(token);
+                    if (!active) {
+                        m_popup->hide();
+                        return;
+                    }
                     showPopup(pos);
                 });
         connect(item.sni, &KStatusNotifierItem::secondaryActivateRequested, this,

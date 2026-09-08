@@ -1,12 +1,13 @@
 #pragma once
 
-#include <QMenu>
+#include <QWidget>
 #include <QVector>
+#include <QElapsedTimer>
 
 class MenuWidget;
 class Provider;
 
-class UsagePopup : public QMenu {
+class UsagePopup : public QWidget {
     Q_OBJECT
 public:
     explicit UsagePopup(QWidget *parent = nullptr);
@@ -19,7 +20,15 @@ signals:
     void refreshRequested();
     void quitRequested();
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+
 private:
+    void applyLayerShell(const QPoint &globalPos, const QSize &size);
+    void placeOnX11(const QPoint &globalPos, const QSize &size);
+
     MenuWidget *m_cards;
-    QWidget *m_anchor = nullptr;
+    QElapsedTimer m_shownAt;
+    bool m_layerConfigured = false;
 };
