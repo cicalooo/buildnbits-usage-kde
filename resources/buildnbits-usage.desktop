@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=BuildnBits Usage
+Comment=Codex, Grok, and Antigravity remaining quota
+Exec=buildnbits-usage
+Icon=buildnbits-usage
+Type=Application
+Categories=Utility;Development;
+StartupNotify=false
+Terminal=false
