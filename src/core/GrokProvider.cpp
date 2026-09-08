@@ -1,5 +1,8 @@
 #include "GrokProvider.h"
 
+#include <QDir>
+#include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
@@ -15,11 +18,24 @@ GrokProvider::~GrokProvider() {
         m_process->kill();
 }
 
+QString GrokProvider::findGrok() {
+    const QString onPath = QStandardPaths::findExecutable(QStringLiteral("grok"));
+    if (!onPath.isEmpty())
+        return onPath;
+    const QString home = qEnvironmentVariable(QByteArrayLiteral("GROK_HOME"),
+                                              QDir::homePath() + QStringLiteral("/.grok"));
+    const QString candidate = home + QStringLiteral("/bin/grok");
+    if (QFileInfo::exists(candidate) && QFileInfo(candidate).isExecutable())
+        return candidate;
+    return {};
+}
+
 void GrokProvider::refresh() {
     if (m_state != State::Idle && m_state != State::Finished)
         return;
 
-    if (QStandardPaths::findExecutable(QStringLiteral("grok")).isEmpty()) {
+    const QString grok = findGrok();
+    if (grok.isEmpty()) {
         markUnavailable();
         return;
     }
@@ -29,27 +45,42 @@ void GrokProvider::refresh() {
         m_process = nullptr;
     }
     m_buffer.clear();
+    m_billingAttempt = 0;
+    m_billingMethods = {QStringLiteral("_x.ai/billing"), QStringLiteral("x.ai/billing")};
     m_state = State::Starting;
-    m_timeout.start(12000);
+    m_timeout.start(20000);
 
     m_process = new QProcess(this);
+    m_process->setWorkingDirectory(QDir::homePath());
     connect(m_process, &QProcess::started, this, &GrokProvider::onProcessStarted);
     connect(m_process, &QProcess::readyReadStandardOutput, this,
             &GrokProvider::onReadyReadStandardOutput);
+    connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
+        if (m_process)
+            m_process->readAllStandardError();
+    });
     connect(m_process, &QProcess::finished, this, &GrokProvider::onProcessFinished);
     connect(m_process, &QProcess::errorOccurred, this, &GrokProvider::onProcessError);
-    m_process->start(QStringLiteral("grok"), {QStringLiteral("--no-auto-update"), QStringLiteral("agent"), QStringLiteral("stdio")});
+    m_process->start(grok, {QStringLiteral("--no-auto-update"), QStringLiteral("agent"),
+                            QStringLiteral("stdio")});
 }
 
 void GrokProvider::onProcessStarted() {
     m_state = State::Initializing;
-    QJsonObject capabilities;
-    capabilities[QStringLiteral("fs")] = QJsonObject{{QStringLiteral("readTextFile"), false}, {QStringLiteral("writeTextFile"), false}};
-    capabilities[QStringLiteral("terminal")] = false;
-    QJsonObject params{{QStringLiteral("protocolVersion"), QStringLiteral("1")}, {QStringLiteral("clientCapabilities"), capabilities}};
+    QJsonObject fs{{QStringLiteral("readTextFile"), false}, {QStringLiteral("writeTextFile"), false}};
+    QJsonObject clientCapabilities{{QStringLiteral("fs"), fs}, {QStringLiteral("terminal"), false}};
+    QJsonObject clientInfo{{QStringLiteral("name"), QStringLiteral("BuildnBits.Usage")},
+                           {QStringLiteral("version"), QStringLiteral("0.1.0")}};
+    QJsonObject params;
+    params[QStringLiteral("protocolVersion")] = 1;
+    params[QStringLiteral("clientInfo")] = clientInfo;
+    params[QStringLiteral("capabilities")] = QJsonObject();
+    params[QStringLiteral("clientCapabilities")] = clientCapabilities;
     m_initializeId = m_nextId++;
-    send(QJsonObject{{QStringLiteral("jsonrpc"), QStringLiteral("2.0")}, {QStringLiteral("id"), m_initializeId},
-                     {QStringLiteral("method"), QStringLiteral("initialize")}, {QStringLiteral("params"), params}});
+    send(QJsonObject{{QStringLiteral("jsonrpc"), QStringLiteral("2.0")},
+                     {QStringLiteral("id"), m_initializeId},
+                     {QStringLiteral("method"), QStringLiteral("initialize")},
+                     {QStringLiteral("params"), params}});
 }
 
 void GrokProvider::send(const QJsonObject &payload) {
@@ -79,16 +110,78 @@ void GrokProvider::onReadyReadStandardOutput() {
 }
 
 void GrokProvider::handleMessage(const QJsonObject &message) {
-    if (message.value(QStringLiteral("id")).toInt() == m_initializeId && message.contains(QStringLiteral("result"))) {
-        m_state = State::FetchingBilling;
-        m_billingId = m_nextId++;
-        send(QJsonObject{{QStringLiteral("jsonrpc"), QStringLiteral("2.0")}, {QStringLiteral("id"), m_billingId},
-                         {QStringLiteral("method"), QStringLiteral("x.ai/billing")}, {QStringLiteral("params"), QJsonObject{}}});
-    } else if (message.value(QStringLiteral("id")).toInt() == m_billingId && message.contains(QStringLiteral("result"))) {
-        handleBilling(message.value(QStringLiteral("result")).toObject());
-    } else if (message.value(QStringLiteral("id")).toInt() == m_billingId && message.contains(QStringLiteral("error"))) {
-        finishError();
+    const int id = message.value(QStringLiteral("id")).toInt(-1);
+    if (id < 0)
+        return; // notifications such as _x.ai/announcements/update
+
+    if (id == m_initializeId && message.contains(QStringLiteral("result"))) {
+        handleInitialize(message.value(QStringLiteral("result")).toObject());
+        return;
     }
+    if (id == m_authId) {
+        if (message.contains(QStringLiteral("error"))) {
+            markSignedOut();
+            m_state = State::Finished;
+            m_timeout.stop();
+            if (m_process)
+                m_process->terminate();
+            return;
+        }
+        requestNextBilling();
+        return;
+    }
+    if (id == m_billingId) {
+        if (message.contains(QStringLiteral("error"))) {
+            requestNextBilling();
+            return;
+        }
+        handleBilling(message.value(QStringLiteral("result")).toObject());
+    }
+}
+
+void GrokProvider::handleInitialize(const QJsonObject &result) {
+    bool hasCachedToken = false;
+    for (const auto &v : result.value(QStringLiteral("authMethods")).toArray()) {
+        if (v.toObject().value(QStringLiteral("id")).toString() == QStringLiteral("cached_token")) {
+            hasCachedToken = true;
+            break;
+        }
+    }
+    if (!hasCachedToken) {
+        markSignedOut();
+        m_state = State::Finished;
+        m_timeout.stop();
+        if (m_process)
+            m_process->terminate();
+        return;
+    }
+
+    send(QJsonObject{{QStringLiteral("jsonrpc"), QStringLiteral("2.0")},
+                     {QStringLiteral("method"), QStringLiteral("initialized")},
+                     {QStringLiteral("params"), QJsonObject()}});
+
+    m_state = State::Authenticating;
+    m_authId = m_nextId++;
+    QJsonObject authParams{{QStringLiteral("methodId"), QStringLiteral("cached_token")},
+                           {QStringLiteral("authMethodId"), QStringLiteral("cached_token")}};
+    send(QJsonObject{{QStringLiteral("jsonrpc"), QStringLiteral("2.0")},
+                     {QStringLiteral("id"), m_authId},
+                     {QStringLiteral("method"), QStringLiteral("authenticate")},
+                     {QStringLiteral("params"), authParams}});
+}
+
+void GrokProvider::requestNextBilling() {
+    if (m_billingAttempt >= m_billingMethods.size()) {
+        finishError();
+        return;
+    }
+    m_state = State::FetchingBilling;
+    m_billingId = m_nextId++;
+    const QString method = m_billingMethods.at(m_billingAttempt++);
+    send(QJsonObject{{QStringLiteral("jsonrpc"), QStringLiteral("2.0")},
+                     {QStringLiteral("id"), m_billingId},
+                     {QStringLiteral("method"), method},
+                     {QStringLiteral("params"), QJsonObject()}});
 }
 
 void GrokProvider::handleBilling(const QJsonObject &billing) {
@@ -100,14 +193,16 @@ void GrokProvider::handleBilling(const QJsonObject &billing) {
     if (root.contains(QStringLiteral("creditUsagePercent")))
         usedPercent = root.value(QStringLiteral("creditUsagePercent")).toDouble(-1);
     if (usedPercent < 0) {
-        const auto usedObj = root.value(QStringLiteral("usage")).toObject().value(QStringLiteral("totalUsed")).toObject();
-        const double used = usedObj.value(QStringLiteral("val")).toDouble();
-        const double limit = root.value(QStringLiteral("monthlyLimit")).toObject().value(QStringLiteral("val")).toDouble();
+        const double used = root.value(QStringLiteral("usage")).toObject()
+                                .value(QStringLiteral("totalUsed")).toObject()
+                                .value(QStringLiteral("val")).toDouble();
+        const double limit = root.value(QStringLiteral("monthlyLimit")).toObject()
+                                 .value(QStringLiteral("val")).toDouble();
         if (limit > 0)
             usedPercent = (used / limit) * 100.0;
     }
     if (usedPercent < 0) {
-        finishError();
+        requestNextBilling();
         return;
     }
 
@@ -122,9 +217,7 @@ void GrokProvider::handleBilling(const QJsonObject &billing) {
     credits.durationMinutes = 10080;
     QString reset = root.value(QStringLiteral("currentPeriod")).toObject().value(QStringLiteral("end")).toString();
     if (reset.isEmpty())
-        reset = root.value(QStringLiteral("billingCycle")).toObject().value(QStringLiteral("billingPeriodEnd")).toString();
-    if (reset.isEmpty())
-        reset = billing.value(QStringLiteral("billingCycle")).toObject().value(QStringLiteral("billingPeriodEnd")).toString();
+        reset = root.value(QStringLiteral("billingPeriodEnd")).toString();
     const QDateTime resetTime = QDateTime::fromString(reset, Qt::ISODate);
     if (resetTime.isValid())
         credits.resetDescription = resetTime.toLocalTime().toString(QStringLiteral("yyyy-MM-dd hh:mm"));

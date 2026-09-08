@@ -2,6 +2,7 @@
 
 #include "Provider.h"
 #include <QProcess>
+#include <QStringList>
 #include <QTimer>
 
 class QJsonObject;
@@ -22,10 +23,13 @@ private slots:
     void onTimeout();
 
 private:
-    enum class State { Idle, Starting, Initializing, FetchingBilling, Finished };
+    enum class State { Idle, Starting, Initializing, Authenticating, FetchingBilling, Finished };
 
+    static QString findGrok();
     void send(const QJsonObject &payload);
     void handleMessage(const QJsonObject &message);
+    void handleInitialize(const QJsonObject &result);
+    void requestNextBilling();
     void handleBilling(const QJsonObject &billing);
     void finishError();
 
@@ -35,5 +39,8 @@ private:
     State m_state = State::Idle;
     int m_nextId = 1;
     int m_initializeId = -1;
+    int m_authId = -1;
     int m_billingId = -1;
+    int m_billingAttempt = 0;
+    QStringList m_billingMethods;
 };
