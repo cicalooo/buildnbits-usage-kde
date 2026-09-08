@@ -10,8 +10,9 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QMouseEvent>
-#include <QPushButton>
+#include <QIcon>
 #include <QScreen>
+#include <QToolButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -25,8 +26,41 @@ UsagePopup::UsagePopup(QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
 
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(10, 10, 10, 10);
-    root->setSpacing(8);
+    root->setContentsMargins(8, 6, 8, 8);
+    root->setSpacing(4);
+
+    auto iconButton = [this](const QString &iconName, const QString &fallback, const QString &tip) {
+        auto *btn = new QToolButton(this);
+        QIcon icon = QIcon::fromTheme(iconName);
+        if (icon.isNull())
+            icon = QIcon::fromTheme(fallback);
+        btn->setIcon(icon);
+        btn->setIconSize(QSize(16, 16));
+        btn->setAutoRaise(true);
+        btn->setFocusPolicy(Qt::NoFocus);
+        btn->setToolTip(tip);
+        btn->setFixedSize(24, 24);
+        btn->setStyleSheet(QStringLiteral(
+            "QToolButton { border: none; border-radius: 4px; padding: 2px; }"
+            "QToolButton:hover { background: palette(mid); }"
+            "QToolButton:pressed { background: palette(dark); }"));
+        return btn;
+    };
+
+    auto *toolbar = new QHBoxLayout();
+    toolbar->setContentsMargins(0, 0, 0, 0);
+    toolbar->setSpacing(2);
+    auto *refresh = iconButton(QStringLiteral("view-refresh"), QStringLiteral("view-refresh-symbolic"), tr("Refresh"));
+    auto *settings = iconButton(QStringLiteral("settings-configure"), QStringLiteral("configure"), tr("Settings"));
+    auto *closeBtn = iconButton(QStringLiteral("window-close"), QStringLiteral("dialog-close"), tr("Close"));
+    connect(refresh, &QToolButton::clicked, this, &UsagePopup::refreshRequested);
+    connect(settings, &QToolButton::clicked, this, &UsagePopup::settingsRequested);
+    connect(closeBtn, &QToolButton::clicked, this, &UsagePopup::hide);
+    toolbar->addWidget(refresh);
+    toolbar->addWidget(settings);
+    toolbar->addStretch();
+    toolbar->addWidget(closeBtn);
+    root->addLayout(toolbar);
 
     auto *scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
@@ -35,19 +69,6 @@ UsagePopup::UsagePopup(QWidget *parent)
     m_cards = new MenuWidget(scroll);
     scroll->setWidget(m_cards);
     root->addWidget(scroll, 1);
-
-    auto *row = new QHBoxLayout();
-    auto *refresh = new QPushButton(tr("Refresh"), this);
-    auto *settings = new QPushButton(tr("Settings"), this);
-    auto *quit = new QPushButton(tr("Quit"), this);
-    connect(refresh, &QPushButton::clicked, this, &UsagePopup::refreshRequested);
-    connect(settings, &QPushButton::clicked, this, &UsagePopup::settingsRequested);
-    connect(quit, &QPushButton::clicked, this, &UsagePopup::quitRequested);
-    row->addWidget(refresh);
-    row->addWidget(settings);
-    row->addStretch();
-    row->addWidget(quit);
-    root->addLayout(row);
 
     setMinimumWidth(380);
     setMaximumHeight(720);
@@ -139,7 +160,7 @@ void UsagePopup::presentAt(const QPoint &globalPos) {
     const QRect avail = screen ? screen->availableGeometry() : QRect(0, 0, 800, 600);
     QSize sz = m_cards->sizeHint().expandedTo(QSize(380, 220));
     sz.setWidth(qBound(380, sz.width(), avail.width() - 16));
-    sz.setHeight(qBound(220, sz.height() + 52, qMin(720, avail.height() - 24)));
+    sz.setHeight(qBound(220, sz.height() + 36, qMin(720, avail.height() - 24)));
     resize(sz);
 
     const bool wayland = QGuiApplication::platformName() == QLatin1String("wayland");
