@@ -201,11 +201,17 @@ QMenu *TrayIcon::buildContextMenu(ProviderID id) {
 }
 
 void TrayIcon::rebuildItems() {
-    for (auto &item : m_items) {
-        delete item.sni;
-        delete item.menu;
-    }
+    if (m_popup)
+        m_popup->hide();
+    const QList<Item> old = m_items;
     m_items.clear();
+    for (const auto &item : old) {
+        // KStatusNotifierItem takes ownership of the context menu and deletes it.
+        if (item.sni) {
+            item.sni->disconnect();
+            item.sni->deleteLater();
+        }
+    }
 
     for (auto *provider : enabledProviders()) {
         Item item;
@@ -262,6 +268,10 @@ void TrayIcon::applySettings() {
         m_timer->start(interval);
     else
         m_timer->stop();
-    rebuildItems();
-    refreshEnabled();
+    // Do not destroy StatusNotifierItems in the same stack as the dialog's
+    // accepted/settingsChanged signals; that double-frees the DBus menu.
+    QTimer::singleShot(0, this, [this]() {
+        rebuildItems();
+        refreshEnabled();
+    });
 }

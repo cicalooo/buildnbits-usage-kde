@@ -75,9 +75,14 @@ void SettingsDialog::loadSettings() {
 void SettingsDialog::saveSettings() {
     m_settings.setValue(QStringLiteral("refresh_interval"), refreshInterval());
     m_settings.setValue(QStringLiteral("autostart"), isAutostartEnabled());
-    m_settings.setValue(QStringLiteral("showCodex"), showCodex());
-    m_settings.setValue(QStringLiteral("showGrok"), showGrok());
-    m_settings.setValue(QStringLiteral("showAgy"), showAgy());
+    bool codex = showCodex();
+    bool grok = showGrok();
+    bool agy = showAgy();
+    if (!codex && !grok && !agy)
+        codex = true;
+    m_settings.setValue(QStringLiteral("showCodex"), codex);
+    m_settings.setValue(QStringLiteral("showGrok"), grok);
+    m_settings.setValue(QStringLiteral("showAgy"), agy);
     updateAutostart(isAutostartEnabled());
     emit settingsChanged();
     accept();
