@@ -1,19 +1,18 @@
 #include "MenuWidget.h"
+#include "Format.h"
 #include "IconRenderer.h"
 #include "Provider.h"
 
-#include <algorithm>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QProgressBar>
 #include <QVBoxLayout>
-#include <QDateTime>
 
 MenuWidget::MenuWidget(QWidget *parent) : QWidget(parent), m_cardsLayout(new QVBoxLayout(this)) {
-    m_cardsLayout->setContentsMargins(10, 10, 10, 10);
-    m_cardsLayout->setSpacing(8);
-    setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
+    m_cardsLayout->setContentsMargins(0, 0, 0, 0);
+    m_cardsLayout->setSpacing(0);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 }
 
 void MenuWidget::clearCards() {
@@ -24,77 +23,53 @@ void MenuWidget::clearCards() {
     }
 }
 
-static QString ageLabel(const QDateTime &ts) {
-    if (!ts.isValid())
-        return QString();
-    const qint64 secs = ts.secsTo(QDateTime::currentDateTime());
-    if (secs < 10)
-        return QStringLiteral("now");
-    if (secs < 60)
-        return QStringLiteral("%1s").arg(secs);
-    if (secs < 3600)
-        return QStringLiteral("%1m").arg(secs / 60);
-    return ts.toString(QStringLiteral("HH:mm"));
-}
-
 QWidget *MenuWidget::createCard(Provider *provider, bool expanded) {
+    Q_UNUSED(expanded);
     const QColor brand = IconRenderer::brandFor(provider->id());
     auto *card = new QFrame(this);
+    card->setObjectName(QStringLiteral("squareCard"));
     card->setFrameShape(QFrame::NoFrame);
     card->setStyleSheet(QStringLiteral(
-        "QFrame#squareCard { background: palette(base); border: 1px solid palette(mid); border-radius: 12px; }"
+        "QFrame#squareCard { background: transparent; }"
         "QLabel { border: none; background: transparent; }"));
-    card->setObjectName(QStringLiteral("squareCard"));
 
     auto *outer = new QHBoxLayout(card);
     outer->setContentsMargins(0, 0, 0, 0);
-    outer->setSpacing(0);
+    outer->setSpacing(8);
 
     auto *rail = new QFrame(card);
-    rail->setFixedWidth(4);
-    rail->setStyleSheet(QStringLiteral("background: %1; border: none; border-top-left-radius: 12px; border-bottom-left-radius: 12px;")
+    rail->setFixedWidth(3);
+    rail->setStyleSheet(QStringLiteral("background: %1; border: none; border-radius: 2px;")
                             .arg(brand.name()));
     outer->addWidget(rail);
 
     auto *layout = new QVBoxLayout();
-    layout->setContentsMargins(12, 10, 12, 10);
-    layout->setSpacing(6);
+    layout->setContentsMargins(0, 0, 2, 2);
+    layout->setSpacing(4);
     outer->addLayout(layout, 1);
 
+    auto snapshot = provider->snapshot();
+    sortWindowsShortFirst(&snapshot.limits);
+
     auto *header = new QHBoxLayout();
-    auto *dot = new QLabel(card);
-    dot->setFixedSize(8, 8);
-    dot->setStyleSheet(QStringLiteral("background: %1; border-radius: 4px;").arg(brand.name()));
-    header->addWidget(dot, 0, Qt::AlignVCenter);
+    header->setSpacing(6);
     auto *title = new QLabel(provider->name(), card);
     QFont titleFont = title->font();
     titleFont.setBold(true);
-    titleFont.setPointSize(titleFont.pointSize() + 1);
     title->setFont(titleFont);
+    title->setStyleSheet(QStringLiteral("color: %1;").arg(brand.name()));
     header->addWidget(title);
     header->addStretch();
 
-    auto snapshot = provider->snapshot();
-    int heroIndex = 0;
-    for (int i = 1; i < snapshot.limits.size(); ++i) {
-        if (snapshot.limits.at(i).displayPercent() < snapshot.limits.at(heroIndex).displayPercent())
-            heroIndex = i;
+    const ProviderState state = provider->state();
+    if (state == ProviderState::Stale) {
+        auto *stale = new QLabel(tr("cached"), card);
+        stale->setStyleSheet(QStringLiteral("color: palette(mid); font-size: 10px;"));
+        header->addWidget(stale);
     }
-    const QString source = snapshot.source.isEmpty() ? QStringLiteral("cli") : snapshot.source;
-    auto *chip = new QLabel(source + QStringLiteral(" · ") + ageLabel(snapshot.timestamp), card);
-    chip->setStyleSheet(QStringLiteral("color: palette(mid); font-size: 11px;"));
-    header->addWidget(chip);
     layout->addLayout(header);
 
-    const ProviderState state = provider->state();
     if (state == ProviderState::SignedOut) {
-        auto *hero = new QLabel(QStringLiteral("—"), card);
-        QFont hf = hero->font();
-        hf.setBold(true);
-        hf.setPointSize(hf.pointSize() + 8);
-        hero->setFont(hf);
-        hero->setStyleSheet(QStringLiteral("color: %1;").arg(brand.name()));
-        layout->addWidget(hero);
         auto *hint = new QLabel(provider->id() == ProviderID::Codex
                                     ? tr("Sign in with Codex CLI")
                                     : tr("Not signed in"),
@@ -111,67 +86,34 @@ QWidget *MenuWidget::createCard(Provider *provider, bool expanded) {
         return card;
     }
 
-    if (state == ProviderState::Stale) {
-        auto *banner = new QLabel(provider->id() == ProviderID::Antigravity
-                                      ? tr("App closed · last snapshot")
-                                      : tr("Cached"),
-                                  card);
-        banner->setStyleSheet(QStringLiteral("color: palette(mid);"));
-        layout->addWidget(banner);
-    }
+    for (const auto &limit : snapshot.limits) {
+        auto *row = new QHBoxLayout();
+        row->setSpacing(8);
+        auto *name = new QLabel(limit.label, card);
+        name->setStyleSheet(QStringLiteral("font-size: 11px;"));
+        row->addWidget(name, 1);
+        auto *pct = new QLabel(QStringLiteral("%1%").arg(qRound(limit.displayPercent())), card);
+        pct->setStyleSheet(QStringLiteral("font-weight: 600; color: %1;").arg(brand.name()));
+        row->addWidget(pct);
+        const QString reset = resetLabel(limit);
+        auto *eta = new QLabel(reset.isEmpty() ? QStringLiteral("—") : reset, card);
+        eta->setStyleSheet(QStringLiteral("color: palette(mid); font-size: 11px; font-family: monospace;"));
+        eta->setMinimumWidth(64);
+        eta->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        row->addWidget(eta);
+        layout->addLayout(row);
 
-    const UsageLimit &heroLimit = snapshot.limits.at(heroIndex);
-    auto *heroRow = new QHBoxLayout();
-    auto *hero = new QLabel(QStringLiteral("%1%").arg(qRound(heroLimit.displayPercent())), card);
-    QFont hf = hero->font();
-    hf.setBold(true);
-    hf.setPointSize(hf.pointSize() + 8);
-    hero->setFont(hf);
-    hero->setStyleSheet(QStringLiteral("color: %1;").arg(brand.name()));
-    heroRow->addWidget(hero);
-    heroRow->addStretch();
-    auto *reset = new QLabel(heroLimit.resetDescription.isEmpty() ? tr("reset unknown") : heroLimit.resetDescription, card);
-    reset->setStyleSheet(QStringLiteral("color: palette(mid);"));
-    heroRow->addWidget(reset, 0, Qt::AlignBottom);
-    layout->addLayout(heroRow);
-
-    auto addBar = [&](const UsageLimit &limit, int height) {
-        auto *row = new QLabel(QStringLiteral("%1  %2%")
-                                   .arg(limit.label)
-                                   .arg(qRound(limit.displayPercent())),
-                               card);
-        layout->addWidget(row);
         auto *bar = new QProgressBar(card);
         bar->setRange(0, 100);
         bar->setValue(qBound(0, qRound(limit.displayPercent()), 100));
         bar->setTextVisible(false);
-        bar->setFixedHeight(height);
+        bar->setFixedHeight(5);
         bar->setStyleSheet(QStringLiteral(
-            "QProgressBar { background: rgba(127,127,127,40); border: none; border-radius: 3px; }"
-            "QProgressBar::chunk { background: %1; border-radius: 3px; }")
+            "QProgressBar { background: rgba(127,127,127,28); border: none; border-radius: 2px; max-height: 5px; }"
+            "QProgressBar::chunk { background: %1; border-radius: 2px; }")
                                .arg(brand.name()));
         layout->addWidget(bar);
-        if (!limit.resetDescription.isEmpty() && expanded) {
-            auto *resetRow = new QLabel(limit.resetDescription, card);
-            resetRow->setStyleSheet(QStringLiteral("color: palette(mid); font-size: 11px;"));
-            layout->addWidget(resetRow);
-        }
-    };
-
-    const int primaryH = expanded ? 10 : 6;
-    const int secondaryH = expanded ? 8 : 4;
-    for (int i = 0; i < snapshot.limits.size(); ++i)
-        addBar(snapshot.limits.at(i), i == heroIndex ? primaryH : secondaryH);
-
-    if (provider->id() == ProviderID::Grok) {
-        auto *note = new QLabel(tr("Credits % · not a session window"), card);
-        note->setStyleSheet(QStringLiteral("color: palette(mid); font-size: 11px;"));
-        layout->addWidget(note);
     }
-
-    auto *footer = new QLabel(tr("last good %1").arg(snapshot.timestamp.toString(QStringLiteral("HH:mm"))), card);
-    footer->setStyleSheet(QStringLiteral("color: palette(mid); font-size: 11px;"));
-    layout->addWidget(footer);
     return card;
 }
 
@@ -182,20 +124,19 @@ void MenuWidget::updateData(const QVector<Provider *> &providers) {
     const bool expanded = providers.size() == 1;
     for (auto *provider : providers) {
         m_barCount = qMax(m_barCount, provider->snapshot().limits.size());
-        m_cardsLayout->addWidget(createCard(provider, expanded), 1);
+        m_cardsLayout->addWidget(createCard(provider, expanded), 0);
     }
     if (m_visibleCount == 0) {
         auto *empty = new QLabel(tr("No provider usage data available"), this);
-        empty->setContentsMargins(10, 8, 10, 8);
+        empty->setContentsMargins(8, 8, 8, 8);
         m_cardsLayout->addWidget(empty);
     }
     updateGeometry();
 }
 
 QSize MenuWidget::sizeHint() const {
-    if (m_visibleCount <= 1)
-        return QSize(380, 150 + m_barCount * 52);
-    return QSize(340, 160 * m_visibleCount + 20);
+    const int rows = qMax(1, m_barCount);
+    return QSize(360, 28 + rows * 28);
 }
 
-QSize MenuWidget::minimumSizeHint() const { return QSize(320, 160); }
+QSize MenuWidget::minimumSizeHint() const { return QSize(320, 72); }

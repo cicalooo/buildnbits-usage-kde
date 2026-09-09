@@ -28,6 +28,7 @@ struct UsageLimit {
     double total = 0.0;
     QString unit;
     QString resetDescription;
+    QDateTime resetAt;
     int durationMinutes = 0;
     bool valid = true;
     bool displayRemaining = true;

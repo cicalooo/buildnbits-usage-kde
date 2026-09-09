@@ -13,7 +13,6 @@
 #include <QIcon>
 #include <QScreen>
 #include <QToolButton>
-#include <QScrollArea>
 #include <QVBoxLayout>
 #include <QWindow>
 
@@ -62,16 +61,11 @@ UsagePopup::UsagePopup(QWidget *parent)
     toolbar->addWidget(closeBtn);
     root->addLayout(toolbar);
 
-    auto *scroll = new QScrollArea(this);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_cards = new MenuWidget(scroll);
-    scroll->setWidget(m_cards);
-    root->addWidget(scroll, 1);
+    m_cards = new MenuWidget(this);
+    root->addWidget(m_cards, 1);
 
-    setMinimumWidth(380);
-    setMaximumHeight(720);
+    setMinimumWidth(360);
+    setMaximumWidth(420);
     qApp->installEventFilter(this);
 }
 
@@ -158,9 +152,9 @@ void UsagePopup::presentAt(const QPoint &globalPos) {
     if (!screen)
         screen = QGuiApplication::primaryScreen();
     const QRect avail = screen ? screen->availableGeometry() : QRect(0, 0, 800, 600);
-    QSize sz = m_cards->sizeHint().expandedTo(QSize(380, 220));
-    sz.setWidth(qBound(380, sz.width(), avail.width() - 16));
-    sz.setHeight(qBound(220, sz.height() + 36, qMin(720, avail.height() - 24)));
+    QSize sz = sizeHint().expandedTo(QSize(360, 120));
+    sz.setWidth(qBound(360, sz.width(), qMin(420, avail.width() - 16)));
+    sz.setHeight(qBound(120, sz.height(), avail.height() - 24));
     resize(sz);
 
     const bool wayland = QGuiApplication::platformName() == QLatin1String("wayland");

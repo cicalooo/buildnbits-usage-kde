@@ -59,6 +59,8 @@ void UsageCache::save(ProviderID id, const UsageSnapshot &snapshot) {
         w[QStringLiteral("total")] = limit.total;
         w[QStringLiteral("remaining")] = limit.displayPercent();
         w[QStringLiteral("reset")] = limit.resetDescription;
+        if (limit.resetAt.isValid())
+            w[QStringLiteral("resetAt")] = limit.resetAt.toUTC().toString(Qt::ISODate);
         w[QStringLiteral("durationMinutes")] = limit.durationMinutes;
         windows.append(w);
     }
@@ -82,6 +84,9 @@ bool UsageCache::load(ProviderID id, UsageSnapshot *snapshot) {
         limit.used = w.value(QStringLiteral("used")).toDouble();
         limit.total = w.value(QStringLiteral("total")).toDouble(100.0);
         limit.resetDescription = w.value(QStringLiteral("reset")).toString();
+        limit.resetAt = QDateTime::fromString(w.value(QStringLiteral("resetAt")).toString(), Qt::ISODate);
+        if (limit.resetAt.isValid())
+            limit.resetAt = limit.resetAt.toLocalTime();
         limit.durationMinutes = w.value(QStringLiteral("durationMinutes")).toInt();
         limit.displayRemaining = true;
         limit.valid = limit.total > 0;

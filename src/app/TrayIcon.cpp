@@ -1,6 +1,7 @@
 #include "TrayIcon.h"
 
 #include "UsagePopup.h"
+#include "Format.h"
 
 #include <KLocalizedString>
 #include <KWindowSystem>
@@ -135,12 +136,15 @@ void TrayIcon::paintItem(Item &item) {
     } else if (snap.limits.isEmpty()) {
         tooltip += QStringLiteral("<br>No usage data");
     } else {
-        for (const auto &limit : snap.limits) {
+        auto limits = snap.limits;
+        sortWindowsShortFirst(&limits);
+        for (const auto &limit : limits) {
             tooltip += QStringLiteral("<br>%1: %2%")
                            .arg(limit.label)
                            .arg(qRound(limit.displayPercent()));
-            if (!limit.resetDescription.isEmpty())
-                tooltip += QStringLiteral(" · %1").arg(limit.resetDescription);
+            const QString reset = resetLabel(limit);
+            if (!reset.isEmpty())
+                tooltip += QStringLiteral(" · %1").arg(reset);
         }
         if (paint.stale)
             tooltip += QStringLiteral("<br>cached");

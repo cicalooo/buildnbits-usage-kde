@@ -1,4 +1,5 @@
 #include "GrokProvider.h"
+#include "Format.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -218,9 +219,7 @@ void GrokProvider::handleBilling(const QJsonObject &billing) {
     QString reset = root.value(QStringLiteral("currentPeriod")).toObject().value(QStringLiteral("end")).toString();
     if (reset.isEmpty())
         reset = root.value(QStringLiteral("billingPeriodEnd")).toString();
-    const QDateTime resetTime = QDateTime::fromString(reset, Qt::ISODate);
-    if (resetTime.isValid())
-        credits.resetDescription = resetTime.toLocalTime().toString(QStringLiteral("yyyy-MM-dd hh:mm"));
+    credits.resetAt = parseIsoDateTime(reset);
     snapshot.limits.append(credits);
     m_timeout.stop();
     m_state = State::Finished;

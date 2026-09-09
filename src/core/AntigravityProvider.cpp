@@ -1,4 +1,5 @@
 #include "AntigravityProvider.h"
+#include "Format.h"
 
 #include <QDateTime>
 #include <QJsonArray>
@@ -135,23 +136,16 @@ void AntigravityProvider::parseOutput(const QByteArray &json) {
             limit.total = 100.0;
             limit.displayRemaining = true;
             const QString window = bucket.value(QStringLiteral("window")).toString();
-            if (window.contains(QStringLiteral("week"), Qt::CaseInsensitive) ||
-                bucketName.contains(QStringLiteral("week"), Qt::CaseInsensitive))
+            const QString hay = (window + QLatin1Char(' ') + bucketName + QLatin1Char(' ') + groupName).toLower();
+            if (hay.contains(QLatin1String("week")))
                 limit.durationMinutes = 10080;
+            else if (hay.contains(QLatin1String("5h")) || hay.contains(QLatin1String("5-hour"))
+                     || hay.contains(QLatin1String("five")) || hay.contains(QLatin1String("hour")))
+                limit.durationMinutes = 300;
             QString reset = bucket.value(QStringLiteral("reset_time")).toString();
             if (reset.isEmpty())
                 reset = bucket.value(QStringLiteral("resetTime")).toString();
-            const QDateTime resetDt = QDateTime::fromString(reset, Qt::ISODate);
-            if (resetDt.isValid()) {
-                const qint64 secsLeft = QDateTime::currentDateTimeUtc().secsTo(resetDt.toUTC());
-                if (secsLeft > 0) {
-                    const int hours = secsLeft / 3600;
-                    const int mins = (secsLeft % 3600) / 60;
-                    limit.resetDescription = hours > 0
-                        ? QStringLiteral("Resets in %1h %2m").arg(hours).arg(mins)
-                        : QStringLiteral("Resets in %1m").arg(mins);
-                }
-            }
+            limit.resetAt = parseIsoDateTime(reset);
             snap.limits.append(limit);
         }
     }
@@ -159,6 +153,7 @@ void AntigravityProvider::parseOutput(const QByteArray &json) {
         markUnavailable();
         return;
     }
+    sortWindowsShortFirst(&snap.limits);
     setSnapshot(snap);
     setState(ProviderState::Active);
 }

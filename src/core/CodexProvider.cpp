@@ -181,17 +181,10 @@ void CodexProvider::handleRpcResult(int id, const QJsonValue &result)
             else if (limit.durationMinutes == 10080)
                 limit.label = QStringLiteral("7-day");
             const qint64 resetsAt = static_cast<qint64>(win[QStringLiteral("resetsAt")].toDouble());
-            if (resetsAt > 0) {
-                const qint64 secondsLeft = QDateTime::currentSecsSinceEpoch() < resetsAt
-                    ? resetsAt - QDateTime::currentSecsSinceEpoch() : 0;
-                const qint64 hours = secondsLeft / 3600;
-                const qint64 minutes = (secondsLeft % 3600) / 60;
-                limit.resetDescription = hours > 0
-                    ? QString("Resets in %1h %2m").arg(hours).arg(minutes)
-                    : QString("Resets in %1m").arg(minutes);
-            } else {
+            if (resetsAt > 0)
+                limit.resetAt = QDateTime::fromSecsSinceEpoch(resetsAt);
+            else
                 limit.resetDescription = win[QStringLiteral("resetDescription")].toString();
-            }
             return limit;
         };
 
